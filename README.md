@@ -4,6 +4,8 @@
 
 ## Windows 客户端（无需安装 Python）
 
+**[下载 Windows 客户端 EXE](https://github.com/zhao983/bilibili-replay-downloader/releases/download/v0.2.0/BiliReplayDownloader.exe)** · [查看发布说明与校验值](https://github.com/zhao983/bilibili-replay-downloader/releases/tag/v0.2.0)
+
 客户端文件为 **`BiliReplayDownloader.exe`**，自带 Python、图形界面、HTTPS 证书和 FFmpeg。
 使用 Windows 10 / 11 的 64 位电脑，双击 EXE 即可运行，不需要安装环境或输入命令。
 
