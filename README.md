@@ -16,7 +16,7 @@
 4. 用手机 **B 站 App** 扫描自动打开的二维码，在手机上确认登录。
 5. 等待保存和时长检查完成。文件位于 `downloads/full_场次编号/replay.mp4`。
 
-从 [直播中心的直播回放列表](https://link.bilibili.com/#/my-room/live-record) 找到目标场次，打开“投片段”或剪辑页面，复制地址栏的完整链接。程序不会投稿视频。
+从 [直播中心的直播回放列表] 找到目标场次，打开“投片段”或剪辑页面，复制地址栏的完整链接。程序不会投稿视频。
 
 链接必须包含 `live_key`、`start_time`、`end_time`。示例格式如下，数字是演示值，不能用于实际下载：
 
@@ -102,7 +102,7 @@ downloads/full_场次编号/
 
 ## 登录与数据
 
-扫码请求通过 B 站官方 `passport.bilibili.com` 接口发起，二维码指向 B 站登录域名。用户在手机 App 上确认登录；程序不要求输入账号密码。
+扫码请求通过 B 站官方 `passport.bilibili.com` 接口发起，二维码指向 B 站登录域名。用户在手机 App 上确认登录；程序不要求输入账号密码。登录信息只保存在本次运行的内存中。
 
 Cookie 只保存在本次进程内存中，结束后不保留。临时二维码在退出时清理。默认直连，不修改系统代理设置，保留 HTTPS 证书验证。FFmpeg 日志中的完整 URL 会被隐藏。
 
@@ -147,26 +147,6 @@ python -m unittest discover -s tests -v
 ```
 
 测试不需要 B 站账号，不会联网登录或下载私人回放。覆盖链接解析、扫码状态、权限接口选择、完整播放列表检查、异常时保留未完成文件，以及实际 FFmpeg 保存后逐帧一致性。GitHub Actions 配置了 Windows / Linux、Python 3.10 / 3.12 的测试矩阵；本地交付验证在 Windows / Python 3.10 执行。
-
-## 上传 GitHub
-
-本项目目录可以作为单独的仓库根目录。GitHub 新建空仓库后，在这里运行下列命令，将 `你的用户名` 替换为实际账号：
-
-```bash
-git init -b main
-git add .
-git commit -m "Initial commit"
-git remote add origin https://github.com/你的用户名/bilibili-replay-downloader.git
-git push -u origin main
-```
-
-也可以通过 GitHub 的“Upload files”上传项目源码文件。不要上传整个旧项目目录。
-
-打包干净的源码 ZIP：
-
-```bash
-python scripts/package_source.py
-```
 
 脚本使用允许列表，仅打包源码、测试、文档、许可证、启动脚本和 CI 配置。
 
