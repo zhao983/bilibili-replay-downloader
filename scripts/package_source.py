@@ -4,8 +4,8 @@ from pathlib import Path
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-TOP_FILES = ("README.md", "LICENSE", "pyproject.toml", ".gitignore", "setup.cmd", "start.cmd")
-SOURCE_PATTERNS = {"src": "*.py", "tests": "*.py", "scripts": "*.py", ".github/workflows": "*.yml"}
+TOP_FILES = ("README.md", "LICENSE", "THIRD_PARTY_NOTICES.md", "pyproject.toml", ".gitignore", "setup.cmd", "start.cmd")
+SOURCE_PATTERNS = {"src": "*.py", "tests": "*.py", "scripts": "*.py", ".github/workflows": "*.yml", "licenses": "*.txt"}
 
 
 def source_files(root=ROOT):

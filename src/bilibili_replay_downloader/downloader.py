@@ -12,6 +12,7 @@ import subprocess
 import sys
 import time
 import tempfile
+import threading
 import uuid
 import webbrowser
 from datetime import datetime, timezone
@@ -30,6 +31,32 @@ PASSPORT = 'https://passport.bilibili.com/x/passport-login/web/qrcode/'
 
 class ReplayError(Exception):
     pass
+
+
+class CancelledError(ReplayError):
+    pass
+
+
+class TaskControl:
+    """Thread-safe cancellation and events shared by CLI and desktop workers."""
+    def __init__(self, callback=None):
+        self.cancelled = threading.Event()
+        self.callback = callback
+
+    def check(self):
+        if self.cancelled.is_set():
+            raise CancelledError('已停止，未完成的视频文件会保留。')
+
+    def emit(self, kind, **data):
+        if self.callback:
+            self.callback(kind, data)
+
+
+def report(message, control=None):
+    if control:
+        control.emit('status', message=message)
+    elif sys.stdout is not None:
+        print(message, flush=True)
 
 
 def parse_link(link):
@@ -78,7 +105,9 @@ def get_json(session, url, params=None):
     return data
 
 
-def login(session, qr_path, open_image=True, timeout=180):
+def login(session, qr_path, open_image=True, timeout=180, *, control=None):
+    if control:
+        control.check()
     data = get_json(session, PASSPORT + 'generate')
     qr_url = data.get('url', '')
     qr_address = urlsplit(qr_url)
@@ -88,8 +117,11 @@ def login(session, qr_path, open_image=True, timeout=180):
         raise ReplayError('登录接口未提供有效二维码。')
     qr_path.parent.mkdir(parents=True, exist_ok=True)
     qrcode.make(qr_url).save(qr_path)
-    print(f'二维码已生成：{qr_path}', flush=True)
-    print('请用手机B站App扫描二维码并确认登录。登录信息仅用于本次运行，不保存到文件。', flush=True)
+    if control:
+        control.emit('qr', image=qr_path.read_bytes())
+    report('请用手机B站App扫描二维码并确认登录。登录信息仅用于本次运行，不保存到文件。', control)
+    if not control:
+        report(f'二维码已生成：{qr_path}')
     if open_image:
         try:
             if sys.platform.startswith('win'):
@@ -97,27 +129,35 @@ def login(session, qr_path, open_image=True, timeout=180):
             else:
                 webbrowser.open(qr_path.resolve().as_uri())
         except OSError:
-            print('未能自动打开图片，请手动打开上面的二维码文件。', flush=True)
+            report('未能自动打开图片，请手动打开上面的二维码文件。', control)
     deadline = time.monotonic() + timeout
     previous_code = None
     while time.monotonic() < deadline:
+        if control:
+            control.check()
         status = get_json(session, PASSPORT + 'poll', {'qrcode_key': data['qrcode_key']})
         code = status.get('code')
         if code == 0:
             # Passport normally sets the .bilibili.com session cookie itself.
             if not any(cookie.name == 'SESSDATA' for cookie in session.cookies):
                 raise ReplayError('扫码成功，但未收到登录会话，请重试。')
-            print('登录成功。正在获取整场回放的视频流……', flush=True)
+            if control:
+                control.check()
+                control.emit('logged_in')
+            report('登录成功。', control)
             return
         if code == 86038:
-            raise ReplayError('二维码已过期，请重新运行。')
+            raise ReplayError('二维码已过期，请重新扫码登录。')
         if code not in (86101, 86090):
             raise ReplayError(f'扫码登录状态异常：{code}')
         if code != previous_code:
-            print('等待手机确认登录……' if code == 86090 else '等待扫码……', flush=True)
+            report('等待手机确认登录……' if code == 86090 else '等待扫码……', control)
             previous_code = code
-        time.sleep(2)
-    raise ReplayError('扫码等待超时，请重新运行。')
+        if control:
+            control.cancelled.wait(2)
+        else:
+            time.sleep(2)
+    raise ReplayError('扫码等待超时，请重新扫码登录。')
 
 
 def select_stream(data):
@@ -170,7 +210,9 @@ def read_playlist(session, url):
     raise ReplayError('播放列表嵌套过深，无法确认完整视频。')
 
 
-def run_ffmpeg(arguments, error_log, expected_duration=None, proxy=None):
+def run_ffmpeg(arguments, error_log, expected_duration=None, proxy=None, *, control=None):
+    if control:
+        control.check()
     executable = imageio_ffmpeg.get_ffmpeg_exe()
     environment = os.environ.copy()
     for name in list(environment):
@@ -185,6 +227,8 @@ def run_ffmpeg(arguments, error_log, expected_duration=None, proxy=None):
                '-nostats', '-progress', 'pipe:1'] + arguments
     flags = subprocess.CREATE_NO_WINDOW if sys.platform.startswith('win') else 0
     try:
+        if control:
+            return _run_process(command, environment, flags, error_log, expected_duration, control)
         return _run_process(command, environment, flags, error_log, expected_duration)
     finally:
         if error_log.exists():
@@ -194,46 +238,84 @@ def run_ffmpeg(arguments, error_log, expected_duration=None, proxy=None):
             error_log.write_text(redacted, encoding='utf-8')
 
 
-def _run_process(command, environment, flags, error_log, expected_duration):
+def _run_process(command, environment, flags, error_log, expected_duration, control=None):
     last_report = 0
     output_seconds = 0
     with error_log.open('w', encoding='utf-8') as log:
         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=log,
                                    text=True, encoding='utf-8', errors='replace',
                                    env=environment, creationflags=flags)
+        finished = threading.Event()
+        def watch_cancel():
+            while not finished.wait(0.1):
+                if control.cancelled.is_set():
+                    if process.poll() is None:
+                        try:
+                            process.terminate()
+                            process.wait(timeout=5)
+                        except subprocess.TimeoutExpired:
+                            process.kill()
+                        except OSError:
+                            pass
+                    return
+        watcher = None
+        if control:
+            watcher = threading.Thread(target=watch_cancel, daemon=True)
+            watcher.start()
         try:
             for line in process.stdout:
+                if control:
+                    control.check()
                 key, _, value = line.strip().partition('=')
                 if key == 'out_time_us' and value.lstrip('-').isdigit():
                     output_seconds = max(0, int(value) / 1_000_000)
+                    if control:
+                        control.emit('progress', seconds=output_seconds, total=expected_duration)
                     if expected_duration and time.monotonic() - last_report >= 10:
                         percentage = min(100, output_seconds / expected_duration * 100)
-                        print(f'已保存 {output_seconds / 60:.1f} 分钟 / {expected_duration / 60:.1f} 分钟（{percentage:.1f}%）', flush=True)
+                        report(f'已保存 {output_seconds / 60:.1f} 分钟 / {expected_duration / 60:.1f} 分钟（{percentage:.1f}%）', control)
                         last_report = time.monotonic()
-            if process.wait() != 0:
-                raise ReplayError(f'视频保存失败；未完成文件会保留。详细日志：{error_log}')
+            result = process.wait()
+            if control:
+                control.check()
+            if result != 0:
+                log.flush()
+                detail = error_log.read_text(encoding='utf-8', errors='replace')[-2400:]
+                detail = re.sub(r'https?://[^\s\]\x27\"]+', '[redacted URL]', detail)
+                raise ReplayError(f'视频保存失败；未完成文件会保留。详细日志：{error_log}\n{detail}')
         except BaseException:
             if process.poll() is None:
                 process.terminate()
-                process.wait()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait()
             raise
         finally:
+            finished.set()
+            if watcher:
+                watcher.join(timeout=6)
             process.stdout.close()
     return output_seconds
 
 
-def sha256_file(path):
+def sha256_file(path, control=None):
     digest = hashlib.sha256()
     with path.open('rb') as source:
         for block in iter(lambda: source.read(1024 * 1024), b''):
+            if control:
+                control.check()
             digest.update(block)
     return digest.hexdigest()
 
 
-def save_replay(session, link, output_root, inspect_only=False, proxy=None):
+def save_replay(session, link, output_root, inspect_only=False, proxy=None, *, control=None):
+    if control:
+        control.check()
     params = parse_link(link)
     requested_seconds = int(params['end_time']) - int(params['start_time'])
-    print(f'回放场次：{params["live_key"]}，链接时间范围：{requested_seconds / 60:.2f} 分钟。', flush=True)
+    report(f'回放场次：{params["live_key"]}，链接时间范围：{requested_seconds / 60:.2f} 分钟。', control)
     directory = Path(output_root).resolve() / ('full_' + params['live_key'])
     output = directory / 'replay.mp4'
     if output.exists():
@@ -241,7 +323,9 @@ def save_replay(session, link, output_root, inspect_only=False, proxy=None):
     api = AUTHORIZED_API if 'live_uid' in params else API
     entry = select_stream(get_json(session, api, params))
     source_url, source_seconds, playlists = read_playlist(session, entry['stream'])
-    print(f'取得一条完整视频流，播放列表总时长：{source_seconds / 60:.2f} 分钟。', flush=True)
+    if control:
+        control.check()
+    report(f'取得一条完整视频流，总时长：{source_seconds / 60:.2f} 分钟。', control)
     if requested_seconds - source_seconds > 30:
         raise ReplayError('视频流时长明显短于链接时间范围，无法确认整场完整性；已停止下载。')
     if inspect_only:
@@ -252,26 +336,34 @@ def save_replay(session, link, output_root, inspect_only=False, proxy=None):
     for index, playlist in enumerate(playlists):
         (directory / f'source-{index + 1}.m3u8').write_text(playlist, encoding='utf-8')
     headers = f'User-Agent: {USER_AGENT}\r\nReferer: https://live.bilibili.com/\r\n'
-    print('正在原样保存整条视频流，不裁切、不拼接独立视频、不重编码。', flush=True)
+    if control:
+        control.emit('phase', phase='download')
+    report('正在保存完整回放……', control)
+    extra = {'control': control} if control else {}
     saved_seconds = run_ffmpeg([
         '-n', '-rw_timeout', '30000000', '-headers', headers, '-i', source_url,
         '-map', '0:v:0', '-map', '0:a:0?', '-c', 'copy', '-movflags', '+faststart',
-        str(partial)], directory / f'download-{stamp}.log', source_seconds, proxy)
-    print('下载完成，正在读取完整文件并核对时长……', flush=True)
+        str(partial)], directory / f'download-{stamp}.log', source_seconds, proxy, **extra)
+    if control:
+        control.emit('phase', phase='verify')
+    report('视频已接收，正在检查完整性……', control)
     verified_seconds = run_ffmpeg([
         '-i', str(partial), '-map', '0:v:0', '-map', '0:a:0?', '-c', 'copy',
-        '-f', 'null', '-'], directory / f'verify-{stamp}.log')
+        '-f', 'null', '-'], directory / f'verify-{stamp}.log', **extra)
     if abs(verified_seconds - source_seconds) > 2:
         raise ReplayError('保存文件与完整播放列表时长相差超过2秒，文件保持未完成标记，请检查日志。')
     if not partial.exists() or partial.stat().st_size == 0:
         raise ReplayError('没有生成有效的视频文件。')
+    if control:
+        control.emit('phase', phase='hash')
+    report('正在生成文件校验记录……', control)
     metadata = {
         'live_key': params['live_key'], 'start_time': int(params['start_time']),
         'end_time': int(params['end_time']), 'source_duration_seconds': source_seconds,
         'saved_duration_seconds': saved_seconds, 'verified_duration_seconds': verified_seconds,
         'operation': 'single continuous source; stream copy; no cutting; no re-encoding',
         'downloaded_at_utc': datetime.now(timezone.utc).isoformat(),
-        'sha256': sha256_file(partial), 'file_size': partial.stat().st_size,
+        'sha256': sha256_file(partial, control), 'file_size': partial.stat().st_size,
         'source_start_time': entry.get('start_time'), 'source_end_time': entry.get('end_time'),
     }
     if 'live_uid' in params:
@@ -279,9 +371,11 @@ def save_replay(session, link, output_root, inspect_only=False, proxy=None):
     (directory / 'metadata.json').write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding='utf-8')
     if output.exists():
         raise ReplayError('另一下载任务已生成完整文件，本次未完成文件保留，不会覆盖。')
+    if control:
+        control.check()
     partial.rename(output)
-    print(f'完整视频已保存：{output}', flush=True)
-    print(f'核对时长：{verified_seconds / 60:.2f} 分钟；来源播放列表和文件校验信息已一同保存。', flush=True)
+    report(f'完整视频已保存：{output}', control)
+    report(f'核对时长：{verified_seconds / 60:.2f} 分钟；校验信息已一同保存。', control)
     return output
 
 

@@ -21,3 +21,6 @@ bilibili_record/
 .DS_Store
 Thumbs.db
 *.zip
+*.exe
+*.spec
+artifacts/

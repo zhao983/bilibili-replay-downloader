@@ -2,11 +2,53 @@
 
 输入直播回放链接，使用手机 B 站 App 扫码登录，把有权访问的完整直播回放保存为 MP4。
 
+## Windows 客户端（无需安装 Python）
+
+客户端文件为 **`BiliReplayDownloader.exe`**，自带 Python、图形界面、HTTPS 证书和 FFmpeg。
+使用 Windows 10 / 11 的 64 位电脑，双击 EXE 即可运行，不需要安装环境或输入命令。
+
+1. 在 B 站直播中心找到目标回放，打开“投片段”，复制地址栏里的完整链接。
+2. 将链接粘贴到客户端，点击“浏览…”选择视频保存文件夹。
+3. 点击“开始下载完整回放”。尚未登录时会自动在窗口中显示二维码。
+4. 用手机 B 站 App 扫码，并在手机上确认登录。
+5. 等待下载和完整性检查完成，点击“打开保存文件夹”查看 MP4。
+
+也可以先点击“扫码登录”，同一次运行中下载不同场次无需重复扫码。二维码过期时重新点击
+“扫码登录”；登录信息只在进程内存中保留，关闭客户端后清除。
+
+窗口中显示下载进度，可以停止任务；下载、视频检查和文件校验均在后台运行。
+停止后保留未完成文件，下次重新下载会从头开始。需要代理时在“网络设置”中填写，通常保持空白即可。
+客户端不会自动更新、修改系统代理或申请管理员权限。组件许可证可在“关于”窗口查看。
+
+EXE 发布文件应放在 GitHub Releases；仓库只保存源码，不提交 EXE、压缩包或用户数据。
+维护者也可在 Actions 中手动运行 **Windows desktop EXE** 工作流，下载打包产物。
+
+### 开发者打包客户端
+
+在 Windows 上安装源码及打包依赖，执行：
+
+```powershell
+python -m pip install ".[build]"
+python scripts/build_windows.py
+```
+
+生成 `dist/BiliReplayDownloader.exe` 和 `dist/SHA256SUMS.txt`。构建脚本包含运行组件和
+第三方许可证，详见 [组件说明](THIRD_PARTY_NOTICES.md)。发布前可验证打包后的客户端：
+
+```powershell
+$report = Join-Path $pwd 'artifacts/exe-check.json'
+Start-Process -FilePath 'dist/BiliReplayDownloader.exe' -ArgumentList @('--self-test', $report) -Wait
+Get-Content $report
+```
+
+该检查仅使用本机生成的视频和模拟扫码响应，不登录真实账号；会检查目录选择、中文路径、
+实际保存、逐帧一致性和窗口完成状态。真实 B 站登录和长回放下载依赖网络及账号权限。
+
 适用于当前的直播回放剪辑页面 `/web-cut/quick-publish.html`、`/web-cut/quick-publish-mobile.html` 和 `/web-cut/index.html`。支持自己的不同场次回放；带 `anchor_id` 的链接走主播授权接口，实际权限由 B 站验证。
 
 程序直接保存一条完整、已结束的视频流，没有本地两小时时长上限。保存使用 FFmpeg stream copy，不裁切、不重编码，也不自动拼接独立短片。HLS 本身通过网络数据块传输，读取这些数据块是播放和保存同一条视频流的正常过程。
 
-## 快速开始（Windows）
+## 源码运行（Windows，需要 Python）
 
 需要先安装 **Python 3.10 或更新版本**，并让 `python` 可以在终端中运行。
 
@@ -106,7 +148,7 @@ downloads/full_场次编号/
 
 Cookie 只保存在本次进程内存中，结束后不保留。临时二维码在退出时清理。默认直连，不修改系统代理设置，保留 HTTPS 证书验证。FFmpeg 日志中的完整 URL 会被隐藏。
 
-来源播放列表可能含有临时签名的视频链接；下载的视频、日志、播放列表、校验信息和二维码都是本地运行数据。`.gitignore` 和源码打包脚本会排除这些数据，上传 GitHub 时使用源码项目或生成的源码 ZIP。
+来源播放列表可能含有临时签名的视频链接；下载的视频、日志、播放列表、校验信息和二维码都是本地运行数据。`.gitignore` 和源码打包脚本会排除这些数据，上传 GitHub 时提交源码文件，不提交 ZIP 或本地运行数据。
 
 ## 常见问题
 

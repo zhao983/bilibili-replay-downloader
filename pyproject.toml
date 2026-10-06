@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bilibili-replay-downloader"
-version = "0.1.0"
+version = "0.2.0"
 description = "Save complete Bilibili live replays with QR login and stream copy."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -18,6 +18,12 @@ dependencies = [
 
 [project.scripts]
 bili-replay = "bilibili_replay_downloader.downloader:main"
+
+[project.gui-scripts]
+bili-replay-desktop = "bilibili_replay_downloader.desktop:main"
+
+[project.optional-dependencies]
+build = ["pyinstaller>=6.16,<7"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
