@@ -91,7 +91,7 @@ python -m pip install .
 bili-replay
 ```
 
-FFmpeg 由 `imageio-ffmpeg` 依赖查找；该库在支持的平台上提供 FFmpeg 安装包，通常无需另外安装。在没有对应安装包的平台，可安装 FFmpeg 并设置 `IMAGEIO_FFMPEG_EXE` 指向其路径。完整回放实测在 Windows / Python 3.10 上完成，macOS 和 Linux 未做实机登录下载验证。
+FFmpeg 由 `imageio-ffmpeg` 依赖查找；该库在支持的平台上提供 FFmpeg 安装包，Windows 通常无需另外安装。Linux 集成测试使用 Ubuntu 的 FFmpeg，避免随依赖提供的 Linux 二进制在 HLS 保存测试中异常退出。Linux 用户建议安装系统 FFmpeg，并设置 `IMAGEIO_FFMPEG_EXE=/usr/bin/ffmpeg`；其他平台可将此变量指向实际安装路径。完整回放实测在 Windows / Python 3.10 上完成，macOS 和 Linux 未做实机登录下载验证。
 
 ## 命令行选项
 
