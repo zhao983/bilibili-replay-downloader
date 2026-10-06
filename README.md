@@ -22,26 +22,6 @@
 停止后保留未完成文件，下次重新下载会从头开始。需要代理时在“网络设置”中填写，通常保持空白即可。
 客户端不会自动更新、修改系统代理或申请管理员权限。组件许可证可在“关于”窗口查看。
 
-EXE 发布文件应放在 GitHub Releases；仓库只保存源码，不提交 EXE、压缩包或用户数据。
-维护者也可在 Actions 中手动运行 **Windows desktop EXE** 工作流，下载打包产物。
-
-### 开发者打包客户端
-
-在 Windows 上安装源码及打包依赖，执行：
-
-```powershell
-python -m pip install ".[build]"
-python scripts/build_windows.py
-```
-
-生成 `dist/BiliReplayDownloader.exe` 和 `dist/SHA256SUMS.txt`。构建脚本包含运行组件和
-第三方许可证，详见 [组件说明](THIRD_PARTY_NOTICES.md)。发布前可验证打包后的客户端：
-
-```powershell
-$report = Join-Path $pwd 'artifacts/exe-check.json'
-Start-Process -FilePath 'dist/BiliReplayDownloader.exe' -ArgumentList @('--self-test', $report) -Wait
-Get-Content $report
-```
 
 该检查仅使用本机生成的视频和模拟扫码响应，不登录真实账号；会检查目录选择、中文路径、
 实际保存、逐帧一致性和窗口完成状态。真实 B 站登录和长回放下载依赖网络及账号权限。
