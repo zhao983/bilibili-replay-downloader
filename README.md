@@ -31,6 +31,9 @@ b站直播回放下载
 
 程序直接保存一条完整、已结束的视频流，没有本地两小时时长上限。保存使用 FFmpeg stream copy，不裁切、不重编码，也不自动拼接独立短片。HLS 本身通过网络数据块传输，读取这些数据块是播放和保存同一条视频流的正常过程。
 
+<img width="952" height="827" alt="image" src="https://github.com/user-attachments/assets/befab3e5-c3d9-4b8e-b8af-3b7826cfde33" />
+
+
 ## 源码运行（Windows，需要 Python）
 
 需要先安装 **Python 3.10 或更新版本**，并让 `python` 可以在终端中运行。
