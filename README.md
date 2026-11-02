@@ -5,7 +5,7 @@ b站直播回放下载
 
 ## Windows 客户端（无需安装 Python）
 
-**[下载 Windows 客户端 EXE](https://github.com/zhao983/bilibili-replay-downloader/releases/download/v0.2.0/BiliReplayDownloader.exe)** · [查看发布说明与校验值](https://github.com/zhao983/bilibili-replay-downloader/releases/tag/v0.2.0)
+**[下载 Windows 客户端 EXE](https://github.com/zhao983/bilibili-replay-downloader/releases/download/v0.3.0/BiliReplayDownloader.exe)** · [查看发布说明与校验值](https://github.com/zhao983/bilibili-replay-downloader/releases/tag/v0.3.0)
 
 客户端文件为 **`BiliReplayDownloader.exe`**，自带 Python、图形界面、HTTPS 证书和 FFmpeg。
 使用 Windows 10 / 11 的 64 位电脑，双击 EXE 即可运行，不需要安装环境或输入命令。
@@ -16,22 +16,23 @@ b站直播回放下载
 4. 用手机 B 站 App 扫码，并在手机上确认登录。
 5. 等待下载和完整性检查完成，点击“打开保存文件夹”查看 MP4。
 
-也可以先点击“扫码登录”，同一次运行中下载不同场次无需重复扫码。二维码过期时重新点击
-“扫码登录”；登录信息只在进程内存中保留，关闭客户端后清除。
+也可以先点击“获取登录二维码”，同一次运行中下载不同场次无需重复扫码。二维码过期时点击
+“重新扫码登录”；登录信息只在进程内存中保留，关闭客户端后清除。
+
+新版采用深色侧栏、浅色卡片和紫色操作按钮。支持一键粘贴回放链接，登录标记与任务状态清晰显示，任务详情默认收起；在较小窗口内可以滚动查看内容。
 
 窗口中显示下载进度，可以停止任务；下载、视频检查和文件校验均在后台运行。
 停止后保留未完成文件，下次重新下载会从头开始。需要代理时在“网络设置”中填写，通常保持空白即可。
-客户端不会自动更新、修改系统代理或申请管理员权限。组件许可证可在“关于”窗口查看。
+客户端不会自动更新、修改系统代理或申请管理员权限。组件许可证可在侧栏的“关于与开源组件”窗口查看。
 
 
-该检查仅使用本机生成的视频和模拟扫码响应，不登录真实账号；会检查目录选择、中文路径、
-实际保存、逐帧一致性和窗口完成状态。真实 B 站登录和长回放下载依赖网络及账号权限。
+客户端验证使用本机生成的视频和模拟扫码响应，覆盖目录选择、中文路径、实际保存、逐帧一致性和窗口完成状态。真实 B 站登录和长回放下载依赖网络及账号权限。
 
 适用于当前的直播回放剪辑页面 `/web-cut/quick-publish.html`、`/web-cut/quick-publish-mobile.html` 和 `/web-cut/index.html`。支持自己的不同场次回放；带 `anchor_id` 的链接走主播授权接口，实际权限由 B 站验证。
 
 程序直接保存一条完整、已结束的视频流，没有本地两小时时长上限。保存使用 FFmpeg stream copy，不裁切、不重编码，也不自动拼接独立短片。HLS 本身通过网络数据块传输，读取这些数据块是播放和保存同一条视频流的正常过程。
 
-<img width="952" height="827" alt="image" src="https://github.com/user-attachments/assets/befab3e5-c3d9-4b8e-b8af-3b7826cfde33" />
+![Windows 客户端界面](docs/desktop-preview.png)
 
 
 ## 源码运行（Windows，需要 Python）

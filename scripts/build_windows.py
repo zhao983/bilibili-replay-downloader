@@ -48,7 +48,7 @@ def main():
     icon = assets / 'app.ico'
     picture = Image.new('RGBA', (256, 256), (0, 0, 0, 0))
     draw = ImageDraw.Draw(picture)
-    draw.rounded_rectangle((8, 8, 248, 248), radius=52, fill='#1677d2')
+    draw.rounded_rectangle((8, 8, 248, 248), radius=52, fill='#6655dc')
     draw.rounded_rectangle((46, 58, 210, 184), radius=22, outline='white', width=12)
     draw.polygon(((103, 89), (103, 153), (160, 121)), fill='white')
     draw.line(((94, 210), (162, 210)), fill='white', width=12)

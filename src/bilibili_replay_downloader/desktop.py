@@ -103,10 +103,10 @@ class DesktopController:
 
 
 class ReplayWindow:
-    BG = '#f3f6fb'
+    BG = '#f5f6fa'
     INK = '#17283e'
     MUTED = '#65758b'
-    BLUE = '#1677d2'
+    BLUE = '#6655dc'
 
     def __init__(self, root):
         # Use a compact baseline, then size the window to its actual contents.
@@ -118,100 +118,69 @@ class ReplayWindow:
         self.phase = 'idle'
         self.closing = False
         self.qr_photo = None
+        self.task_outcome = None
         root.title(f'B站完整回放下载器 · {__version__}')
-        root.geometry('960x710')
-        root.minsize(880, 680)
+        root.geometry('1080x760')
+        root.minsize(min(1040, max(900, root.winfo_screenwidth() - 60)),
+                     min(740, max(620, root.winfo_screenheight() - 90)))
         root.configure(bg=self.BG)
         root.protocol('WM_DELETE_WINDOW', self.close)
-        style = ttk.Style(root)
-        style.theme_use('clam')
-        style.configure('.', font=('Microsoft YaHei UI', 10))
-        style.configure('TFrame', background=self.BG)
-        style.configure('Card.TFrame', background='white')
-        style.configure('TLabel', background=self.BG, foreground=self.INK)
-        style.configure('Card.TLabel', background='white', foreground=self.INK)
-        style.configure('Muted.TLabel', foreground=self.MUTED)
-        style.configure('TButton', padding=(14, 8))
-        style.configure('Primary.TButton', background=self.BLUE, foreground='white', borderwidth=0)
-        style.map('Primary.TButton', background=[('active', '#0d63b2'), ('disabled', '#b9cce0')],
-                  foreground=[('disabled', 'white')])
-        style.configure('TEntry', padding=7)
-        style.configure('TProgressbar', background=self.BLUE, troughcolor='#e4edf7', borderwidth=0)
-        outer = ttk.Frame(root, padding=24)
-        outer.pack(fill='both', expand=True)
-        ttk.Label(outer, text='把整场回放，完整留下', font=('Microsoft YaHei UI', 23, 'bold')).pack(anchor='w')
-        ttk.Label(outer, text='粘贴链接  →  手机扫码  →  保存为 MP4', style='Muted.TLabel').pack(anchor='w', pady=(5, 18))
-        body = ttk.Frame(outer)
-        body.pack(fill='x')
-        body.columnconfigure(0, weight=1)
-        left = ttk.Frame(body, style='Card.TFrame', padding=20)
-        left.grid(row=0, column=0, sticky='nsew', padx=(0, 16))
-        left.columnconfigure(0, weight=1)
-        ttk.Label(left, text='1  填写直播回放链接', style='Card.TLabel', font=('Microsoft YaHei UI', 12, 'bold')).grid(row=0, column=0, sticky='w')
-        self.link = tk.Text(left, height=3, wrap='char', font=('Microsoft YaHei UI', 10),
-                            relief='solid', bd=1, highlightthickness=0, padx=9, pady=9,
-                            fg=self.INK, bg='#fafcff', width=48)
-        self.link.grid(row=1, column=0, sticky='ew', pady=(12, 8))
-        ttk.Label(left, text='直播中心 → 直播回放 → 投片段，复制地址栏链接',
-                  style='Card.TLabel', foreground=self.MUTED, font=('Microsoft YaHei UI', 9)).grid(row=2, column=0, sticky='w')
-        ttk.Button(left, text='打开 B 站直播中心', command=lambda: webbrowser.open('https://link.bilibili.com/#/my-room/live-record')).grid(row=3, column=0, sticky='w', pady=(8, 20))
-        ttk.Label(left, text='2  选择保存位置', style='Card.TLabel', font=('Microsoft YaHei UI', 12, 'bold')).grid(row=4, column=0, sticky='w')
-        folder_row = ttk.Frame(left, style='Card.TFrame')
-        folder_row.grid(row=5, column=0, sticky='ew', pady=(12, 6))
-        folder_row.columnconfigure(0, weight=1)
-        self.folder = tk.StringVar(value=str(Path.home() / 'Videos' / 'B站直播回放'))
-        self.folder_entry = ttk.Entry(folder_row, textvariable=self.folder)
-        self.folder_entry.grid(row=0, column=0, sticky='ew')
-        self.choose_button = ttk.Button(folder_row, text='浏览…', command=self.choose_folder)
-        self.choose_button.grid(row=0, column=1, padx=(8, 0))
-        ttk.Label(left, text='每场回放保存在单独文件夹，已有视频不会被覆盖。',
-                  style='Card.TLabel', foreground=self.MUTED, font=('Microsoft YaHei UI', 9)).grid(row=6, column=0, sticky='w')
-        right = ttk.Frame(body, style='Card.TFrame', padding=18, width=275)
-        right.grid(row=0, column=1, sticky='nsew')
-        ttk.Label(right, text='3  B 站 App 扫码登录', style='Card.TLabel', font=('Microsoft YaHei UI', 12, 'bold')).pack(anchor='w')
-        self.qr_label = tk.Label(right, text='点击下方“扫码登录”\n二维码会显示在这里',
-                                 bg='#f2f6fc', fg=self.MUTED, width=28, height=10,
-                                 font=('Microsoft YaHei UI', 10), relief='flat')
-        self.qr_label.pack(pady=(14, 10), fill='x')
-        self.account = tk.StringVar(value='尚未登录')
-        ttk.Label(right, textvariable=self.account, style='Card.TLabel').pack()
-        self.login_button = ttk.Button(right, text='扫码登录', command=lambda: self.begin('login'))
-        self.login_button.pack(pady=10, fill='x')
-        ttk.Label(right, text='请在手机上确认登录\n关闭客户端后自动退出登录', style='Card.TLabel',
-                  foreground=self.MUTED, justify='center', font=('Microsoft YaHei UI', 9)).pack()
-        action = ttk.Frame(outer)
-        action.pack(fill='x', pady=(18, 8))
-        self.download_button = ttk.Button(action, text='开始下载完整回放', style='Primary.TButton', command=lambda: self.begin('download'))
-        self.download_button.pack(side='left')
-        self.cancel_button = ttk.Button(action, text='停止', state='disabled', command=self.cancel)
-        self.cancel_button.pack(side='left', padx=10)
-        self.open_button = ttk.Button(action, text='打开保存文件夹', command=self.open_folder)
-        self.open_button.pack(side='right')
-        self.status = tk.StringVar(value='准备就绪。填写链接并选择保存位置，未登录时会自动显示二维码。')
-        ttk.Label(outer, textvariable=self.status, wraplength=865).pack(anchor='w', pady=(5, 9))
-        self.progress = ttk.Progressbar(outer, maximum=100)
-        self.progress.pack(fill='x')
-        bottom = ttk.Frame(outer)
-        bottom.pack(fill='x', pady=(12, 0))
-        self.network_button = ttk.Button(bottom, text='网络设置', command=self.network_settings)
-        self.network_button.pack(side='left')
-        ttk.Button(bottom, text='使用帮助', command=self.help).pack(side='left', padx=8)
-        ttk.Button(bottom, text='关于', command=self.about).pack(side='left')
-        ttk.Label(bottom, text='完整保存 · 不裁切 · 不重新编码', style='Muted.TLabel').pack(side='right')
-        self.proxy = ''
-        self.details = tk.Text(outer, height=4, wrap='word', bg=self.BG, fg=self.MUTED,
-                               relief='flat', font=('Microsoft YaHei UI', 9), state='disabled')
-        self.details.pack(fill='both', expand=True, pady=(6, 0))
+        from .desktop_view import build
+        build(self)
         root.update_idletasks()
-        width = max(960, root.winfo_reqwidth())
-        height = max(710, root.winfo_reqheight())
+        width = min(max(1080, root.winfo_reqwidth()), root.winfo_screenwidth() - 60)
+        height = max(760, root.winfo_reqheight())
         root.geometry(f'{width}x{height}')
+        root.after(100, self.fit_window)
         self.poll_id = root.after(100, self.poll)
+
+    def fit_window(self):
+        self.root.update_idletasks()
+        desired = self.main_content.winfo_reqheight() + 52
+        height = min(max(780, desired), self.root.winfo_screenheight() - 90)
+        self.root.geometry(f'{self.root.winfo_width()}x{height}')
 
     def choose_folder(self):
         result = filedialog.askdirectory(title='选择视频保存文件夹', parent=self.root)
         if result:
             self.folder.set(result)
+
+    def paste_link(self):
+        try:
+            text = self.root.clipboard_get().strip()
+        except tk.TclError:
+            self.status.set('剪贴板里还没有链接，请先复制回放页面的网址。')
+            return
+        if not text:
+            self.status.set('剪贴板是空的，请先复制回放页面的网址。')
+            return
+        self.link.delete('1.0', 'end')
+        self.link.insert('1.0', text)
+        self.link.focus_set()
+        self.status.set('已粘贴链接。选择保存位置后，即可开始下载。')
+
+    def toggle_details(self):
+        self.details_visible = not self.details_visible
+        if self.details_visible:
+            self.details_panel.pack(fill='both', expand=True, pady=(8, 0))
+            self.details_button.configure(text='收起任务详情  ▴')
+            self.root.update_idletasks()
+            needed = min(self.main_content.winfo_reqheight() + 52, self.root.winfo_screenheight() - 90)
+            if self.root.winfo_height() < needed:
+                self.root.geometry(f'{self.root.winfo_width()}x{needed}')
+        else:
+            self.details_panel.pack_forget()
+            self.details_button.configure(text='查看任务详情  ▾')
+
+    def account_state(self, logged_in=False, loading=False):
+        self.auth_badge.configure(text='已登录' if logged_in else ('登录中' if loading else '未登录'),
+                                  fg='#387c67' if logged_in else ('#6655dc' if loading else '#8c94a4'),
+                                  bg='#eaf6f0' if logged_in else ('#efedfc' if loading else '#f0f2f6'))
+
+    def task_state(self, title, indicator, color='#6655dc'):
+        self.task_title.configure(text=title)
+        self.percent.set(indicator)
+        self.percent_label.configure(fg=color)
 
     def open_folder(self):
         path = self.output_file.parent if self.output_file else Path(self.folder.get()).expanduser()
@@ -300,7 +269,7 @@ class ReplayWindow:
     def set_busy(self, busy):
         state = 'disabled' if busy else 'normal'
         for widget in (self.login_button, self.download_button, self.choose_button,
-                       self.folder_entry, self.network_button):
+                       self.folder_entry, self.network_button, self.paste_button):
             widget.configure(state=state)
         self.link.configure(state=state)
         self.cancel_button.configure(state='normal' if busy else 'disabled')
@@ -319,14 +288,17 @@ class ReplayWindow:
             messagebox.showerror('请检查填写的信息', str(exc), parent=self.root)
             return
         self.output_file = None
+        self.task_outcome = None
         self.progress['value'] = 0
         self.status.set('正在准备……')
+        self.task_state('正在准备', '请稍候')
         self.set_busy(True)
 
     def cancel(self):
         self.controller.cancel()
         self.cancel_button.configure(state='disabled')
         self.status.set('正在停止，请稍候。未完成的视频文件会保留。')
+        self.task_state('正在停止', '请稍候', '#b48936')
 
     def log(self, text):
         self.details.configure(state='normal')
@@ -340,50 +312,68 @@ class ReplayWindow:
         if kind == 'qr':
             image = Image.open(io.BytesIO(data['image'])).convert('RGB').resize((208, 208), Image.Resampling.NEAREST)
             self.qr_photo = ImageTk.PhotoImage(image, master=self.root)
-            self.qr_label.configure(image=self.qr_photo, text='', width=208, height=208)
+            self.qr_label.configure(image=self.qr_photo, text='', bg='white')
             self.account.set('请扫码并在手机上确认')
+            self.account_state(loading=True)
         elif kind in ('logged_in', 'logged_out'):
             self.account.set('已登录 · 本次运行有效' if kind == 'logged_in' else '尚未登录')
-            self.qr_label.configure(image='', text='登录成功\n可以下载不同场次的回放' if kind == 'logged_in' else '请重新扫码登录', width=28, height=10)
+            self.qr_label.configure(image='', text='✓\n\n登录成功\n可以下载不同场次的回放' if kind == 'logged_in' else '点击下方按钮\n获取新的登录二维码',
+                                    fg='#3d8272' if kind == 'logged_in' else '#8f97b2', bg='#f1f8f6' if kind == 'logged_in' else '#f8f9fc')
             self.qr_photo = None
+            self.account_state(logged_in=kind == 'logged_in')
             self.login_button.configure(text='重新扫码登录' if kind == 'logged_in' else '扫码登录')
             if kind == 'logged_in':
                 self.status.set('登录成功，可以开始下载。')
         elif kind == 'phase':
             self.phase = data['phase']
+            phases = {'login': ('等待扫码登录', '手机确认'), 'download': ('正在下载回放', '0.0%'),
+                      'verify': ('正在检查完整性', '即将完成'), 'hash': ('正在生成校验记录', '即将完成')}
+            self.task_state(*phases.get(self.phase, ('正在处理', '请稍候')))
             self.progress.stop()
             self.progress.configure(mode='determinate' if self.phase == 'download' else 'indeterminate')
             if self.phase != 'download':
                 self.progress.start(15)
             if self.phase == 'login':
                 self.account.set('正在生成二维码……')
+                self.account_state(loading=True)
+                self.qr_label.configure(image='', text='正在获取二维码…', fg='#8f97b2', bg='#f8f9fc')
+                self.qr_photo = None
         elif kind == 'status':
             self.status.set(data['message'])
             self.log(data['message'])
         elif kind == 'progress' and self.phase == 'download' and data.get('total'):
             percent = min(99, data['seconds'] / data['total'] * 100)
             self.progress['value'] = percent
+            self.percent.set(f'{percent:.1f}%')
             self.status.set(f"正在下载：{percent:.1f}% · 已保存 {data['seconds'] / 60:.1f} / {data['total'] / 60:.1f} 分钟")
         elif kind == 'complete':
+            self.task_outcome = 'complete'
             self.output_file = Path(data['path'])
             self.progress.stop()
             self.progress.configure(mode='determinate', value=100)
             self.status.set('下载完成，完整性检查已通过。点击“打开保存文件夹”查看视频。')
+            self.task_state('回放已完整保存', '100%  完成', '#3d8272')
             self.log(f'视频位置：{self.output_file}')
         elif kind in ('error', 'cancelled'):
+            self.task_outcome = kind
             self.progress.stop()
             self.progress.configure(mode='determinate')
             self.status.set('任务未完成，请查看提示后重试。' if kind == 'error' else '已停止。未完成的视频文件会保留。')
+            self.task_state('下载未完成' if kind == 'error' else '任务已停止', '可重试', '#ba6571' if kind == 'error' else '#b48936')
             self.log(data['message'])
             if not self.controller.session:
-                self.qr_label.configure(image='', text='点击“扫码登录”\n生成新的二维码', width=28, height=10)
+                self.qr_label.configure(image='', text='点击下方按钮\n获取新的登录二维码', fg='#8f97b2', bg='#f8f9fc')
                 self.qr_photo = None
                 self.account.set('尚未登录')
+                self.account_state()
             if kind == 'error' and not self.closing:
                 messagebox.showerror('任务未完成', data['message'][-2600:], parent=self.root)
         elif kind == 'finished':
             self.progress.stop()
             self.progress.configure(mode='determinate', value=100 if self.output_file else 0)
+            if (self.phase == 'login' and self.controller.session is not None
+                    and not self.output_file and self.task_outcome is None):
+                self.task_state('准备下载', '已登录', '#3d8272')
             self.set_busy(False)
 
     def poll(self):

@@ -39,7 +39,11 @@ def run_check(window, report_file):
             box = (root.winfo_rootx(), root.winfo_rooty(),
                    root.winfo_rootx() + root.winfo_width(), root.winfo_rooty() + root.winfo_height())
             ImageGrab.grab(bbox=box).save(report_file.parent / name)
+        initial_folder = window.folder.get()
+        window.folder.set('D:/直播回放')
+        window.root.update_idletasks()
         screenshot('desktop-preview.png')
+        window.folder.set(initial_folder)
         temp = tempfile.TemporaryDirectory(prefix='bili-replay-check-')
         resources.append(temp.cleanup)
         root = Path(temp.name)
@@ -87,6 +91,15 @@ def run_check(window, report_file):
                 seen_qr.append(True)
         window.event = capture_event
         folder = root / '中文保存位置 with spaces'
+        # Paste uses the normal button; avoid reading or changing the user's clipboard.
+        original_clipboard = window.root.clipboard_get
+        window.root.clipboard_get = lambda: 'https://example.com/invalid'
+        try:
+            window.paste_button.invoke()
+            assert window.link.get('1.0', 'end').strip() == 'https://example.com/invalid'
+        finally:
+            window.root.clipboard_get = original_clipboard
+        window.link.delete('1.0', 'end')
         # Exercise the actual browse handler without displaying a modal native dialog.
         from . import desktop
         original_choose = desktop.filedialog.askdirectory
@@ -109,6 +122,7 @@ def run_check(window, report_file):
                            'start_time=1000000000&end_time=1000000003&live_key=123456789012345678')
         window.download_button.invoke()
         assert str(window.download_button['state']) == 'disabled'
+        assert str(window.paste_button['state']) == 'disabled'
     except Exception as exc:
         finish({'ok': False, 'error': str(exc), 'traceback': traceback.format_exc()})
         return
@@ -127,6 +141,9 @@ def run_check(window, report_file):
             assert seen_qr, 'QR image did not render'
             assert window.output_file and window.output_file.exists()
             assert float(window.progress['value']) == 100
+            assert window.task_title['text'] == '回放已完整保存'
+            assert window.auth_badge['text'] == '已登录'
+            assert window.percent.get() == '100%  完成'
             metadata = json.loads((window.output_file.parent / 'metadata.json').read_text(encoding='utf-8'))
             assert metadata['sha256'] == core.sha256_file(window.output_file)
             assert abs(metadata['verified_duration_seconds'] - 3) < 0.2
@@ -139,6 +156,23 @@ def run_check(window, report_file):
             assert len(hashes[0]) == 72 and hashes[0] == hashes[1]
             window.root.update_idletasks()
             screenshot('desktop-complete.png')
+            window.toggle_details()
+            window.root.update_idletasks()
+            assert window.details_panel.winfo_ismapped()
+            window.toggle_details()
+            window.root.geometry('1040x740')
+            window.root.update()
+            window.scroll_canvas.yview_moveto(1)
+            window.root.update_idletasks()
+            assert (window.download_button.winfo_rooty() + window.download_button.winfo_height()
+                    <= window.root.winfo_rooty() + window.root.winfo_height())
+            # A rejected stream after login must retain the visible error state.
+            window.phase = 'login'
+            window.event('error', {'message': 'Offline fixture: unavailable replay'})
+            errors.clear()
+            window.output_file = None
+            window.event('finished', {})
+            assert window.task_title['text'] == '下载未完成'
             assert window.controller.session is not None
             window.controller.close()
             assert window.controller.session is None
@@ -146,7 +180,9 @@ def run_check(window, report_file):
                     'frames_preserved': 72, 'duration_seconds': metadata['verified_duration_seconds'],
                     'checks': ['GUI startup', 'folder browse', 'invalid link', 'QR login events',
                                'bundled FFmpeg', 'Chinese path', 'full local HLS save',
-                               'progress and completion', 'file hash', 'logout on close']})
+                               'progress and completion', 'file hash', 'logout on close',
+                               'paste link', 'login badge', 'collapsible details',
+                               'small-window scrolling', 'error state after login']})
         except Exception as exc:
             finish({'ok': False, 'error': str(exc), 'traceback': traceback.format_exc()})
     window.root.after(100, check_done)
